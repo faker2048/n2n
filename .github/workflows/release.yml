@@ -135,3 +135,4 @@ jobs:
             artifacts/packages-dpkg/*.deb
             artifacts/packages-rpm/*.rpm
             artifacts/packages-ipk/*/base/*.pkg
+            artifacts/binaries/*
