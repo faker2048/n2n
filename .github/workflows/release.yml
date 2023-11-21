@@ -6,8 +6,9 @@ on:
     workflow_dispatch:
     branches:
       - master
-    release:
-      types: [created]
+  release:
+      types:
+        - created
 
 jobs:
   binaries_windows:
@@ -42,8 +43,6 @@ jobs:
   
   package_dpkg:
     name: Package for Debian/Ubuntu
-    needs:
-      - test_linux
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
