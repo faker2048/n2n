@@ -51,8 +51,6 @@ jobs:
         arch:
           - amd64
           - arm64
-          - armhf
-          - i386
 
     steps:
       - uses: actions/checkout@v3
