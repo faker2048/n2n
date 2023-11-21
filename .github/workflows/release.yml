@@ -4,11 +4,7 @@ name: Release
 on:
   push:
     workflow_dispatch:
-    branches:
-      - master
-  release:
-      types:
-        - created
+
 
 jobs:
   binaries_windows:
