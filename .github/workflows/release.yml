@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           ./scripts/hack_fakeautoconf.sh
-          make
+          make -j
 
       - name: Create binary dir
         shell: bash
@@ -86,7 +86,7 @@ jobs:
       - name: Build
         run: |
           cd packages/debian/
-          make
+          make -j
 
       - name: Upload dpkg
         uses: actions/upload-artifact@v3
