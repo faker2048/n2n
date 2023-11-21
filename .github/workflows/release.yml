@@ -1,0 +1,138 @@
+---
+name: Release
+
+on:
+  push:
+    workflow_dispatch:
+    branches:
+      - master
+    release:
+      types: [created]
+
+jobs:
+  binaries_windows:
+    name: Binaries for Windows (x86_64-pc-mingw64)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Fix Checkout
+        run: |
+          git fetch --force --tags
+
+      - name: Configure and Build
+        shell: bash
+        run: |
+          ./scripts/hack_fakeautoconf.sh
+          make
+
+      - name: Create binary dir
+        shell: bash
+        run: |
+          make install DESTDIR=binaries/windows-x86_64
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: binaries
+  
+  package_dpkg:
+    name: Package for Debian/Ubuntu
+    needs:
+      - test_linux
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        arch:
+          - amd64
+          - arm64
+          - armhf
+          - i386
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Fix Checkout
+        run: |
+          git fetch --force --tags
+
+      - name: Install packages needed for build
+        run: |
+          sudo apt-get update
+          sudo apt-get install debhelper build-essential \
+            devscripts \
+            crossbuild-essential-${{ matrix.arch }}
+
+      - name: Hack dpkg-shlibdeps
+        run: |
+          echo '#!/bin/bash' | sudo tee /usr/bin/dpkg-shlibdeps
+
+      - name: Configure
+        # The HOST_TRIPLET line is not easily foldable
+        # yamllint disable rule:line-length
+        run: |
+          # This will warn about CC, but we cannot set CC until we run it :-S
+          HOST_TRIPLET=$(dpkg-architecture -a${{ matrix.arch }} -q DEB_HOST_GNU_TYPE)
+          ./autogen.sh
+          ./configure --host $HOST_TRIPLET
+        # yamllint enable rule:line-length
+
+      - name: Build
+        run: |
+          cd packages/debian/
+          make
+
+      - name: Upload dpkg
+        uses: actions/upload-artifact@v3
+        with:
+          name: packages-dpkg
+          path: packages/debian/*.deb
+
+  upload_release:
+    name: Upload Release Assets
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - package_dpkg
+      - binaries_windows
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Fix Checkout
+        run: |
+          git fetch --force --tags
+
+      - name: Get Tag Type
+        id: get_tagtype
+        run: |
+          TYPE=$(git cat-file -t $GITHUB_REF)
+          echo "::set-output name=TAGTYPE::$TYPE"
+          echo ==========
+          echo REF=$GITHUB_REF
+          echo TAGTYPE=$TYPE
+
+      - name: Fetch all Artifacts
+        if: steps.get_tagtype.outputs.TAGTYPE == 'tag'
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Upload Assets to Release
+        if: steps.get_tagtype.outputs.TAGTYPE == 'tag'
+        uses: softprops/action-gh-release@v1
+        with:
+          prerelease: true
+          files: |
+            artifacts/packages-dpkg/*.deb
+            artifacts/packages-rpm/*.rpm
+            artifacts/packages-ipk/*/base/*.pkg
